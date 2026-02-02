@@ -1,0 +1,31 @@
+Equipment Name,Type,Flowrate,Pressure,Temperature
+Reactor-001,Reactor,150.5,25.3,180.0
+Reactor-002,Reactor,175.2,28.7,195.5
+Pump-001,Pump,85.0,15.2,45.0
+Pump-002,Pump,92.3,16.8,48.5
+Pump-003,Pump,78.6,14.5,42.0
+Heat-Exchanger-001,Heat Exchanger,200.0,12.5,120.0
+Heat-Exchanger-002,Heat Exchanger,225.8,14.2,135.5
+Distillation-Column-001,Distillation Column,300.0,8.5,95.0
+Distillation-Column-002,Distillation Column,285.5,7.8,92.5
+Compressor-001,Compressor,450.0,45.0,85.0
+Compressor-002,Compressor,475.5,48.2,88.5
+Valve-001,Valve,50.0,22.0,65.0
+Valve-002,Valve,55.2,24.5,68.0
+Valve-003,Valve,48.8,20.8,62.5
+Tank-001,Storage Tank,0.0,1.5,25.0
+Tank-002,Storage Tank,0.0,1.8,28.0
+Separator-001,Separator,180.0,18.5,75.0
+Separator-002,Separator,195.2,20.0,78.5
+Filter-001,Filter,120.0,5.5,35.0
+Filter-002,Filter,115.8,5.2,33.5
+Mixer-001,Mixer,85.5,8.0,55.0
+Mixer-002,Mixer,90.2,8.5,58.0
+Boiler-001,Boiler,250.0,35.0,220.0
+Boiler-002,Boiler,275.5,38.5,235.0
+Condenser-001,Condenser,180.0,6.5,40.0
+Condenser-002,Condenser,195.0,7.0,42.5
+Evaporator-001,Evaporator,160.0,4.5,85.0
+Crystallizer-001,Crystallizer,75.0,3.2,25.0
+Dryer-001,Dryer,45.0,2.8,150.0
+Centrifuge-001,Centrifuge,95.0,12.0,35.0

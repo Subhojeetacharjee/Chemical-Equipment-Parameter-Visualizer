@@ -1,1 +1,296 @@
-# Chemical-Equipment-Parameter-Visualizer
+# Chemical Equipment Parameter Visualizer
+
+A full-stack hybrid application for uploading, analyzing, and visualizing chemical equipment data. This project includes a Django REST API backend, a React.js web frontend, and a PyQt5 desktop application.
+
+![Project Banner](https://via.placeholder.com/1200x300/667eea/ffffff?text=Chemical+Equipment+Parameter+Visualizer)
+
+## 📋 Table of Contents
+
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [Prerequisites](#-prerequisites)
+- [Installation](#-installation)
+  - [Backend Setup](#backend-setup)
+  - [Web Frontend Setup](#web-frontend-setup)
+  - [Desktop Application Setup](#desktop-application-setup)
+- [Usage](#-usage)
+- [API Documentation](#-api-documentation)
+- [Screenshots](#-screenshots)
+- [Contributing](#-contributing)
+- [License](#-license)
+
+## ✨ Features
+
+- **CSV Upload**: Upload CSV files with equipment data (Equipment Name, Type, Flowrate, Pressure, Temperature)
+- **Data Analysis**: Automatic calculation of summary statistics
+  - Total equipment count
+  - Average values for Flowrate, Pressure, and Temperature
+  - Equipment type distribution
+- **Data Visualization**:
+  - Interactive charts using Chart.js (Web)
+  - Matplotlib charts (Desktop)
+  - Pie charts, bar charts, and line graphs
+- **History Management**: Store and access the last 5 uploaded datasets
+- **PDF Report Generation**: Generate detailed PDF reports with authentication
+- **Dual Interface**: Access via web browser or desktop application
+- **Responsive Design**: Web application works on all screen sizes
+
+## 🛠 Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Backend | Python Django + Django REST Framework |
+| Web Frontend | React.js + Chart.js |
+| Desktop Frontend | PyQt5 + Matplotlib |
+| Data Processing | Pandas |
+| Database | SQLite |
+| PDF Generation | ReportLab |
+
+## 📁 Project Structure
+
+```
+Chemical Equipment Parameter Visualizer/
+├── backend/                          # Django REST API
+│   ├── api/                          # API application
+│   │   ├── models.py                 # Database models
+│   │   ├── serializers.py            # REST serializers
+│   │   ├── views.py                  # API views
+│   │   ├── urls.py                   # API routes
+│   │   └── admin.py                  # Admin configuration
+│   ├── backend/                      # Django project settings
+│   │   ├── settings.py               # Project settings
+│   │   ├── urls.py                   # Main URL configuration
+│   │   └── wsgi.py                   # WSGI configuration
+│   ├── manage.py                     # Django management script
+│   └── requirements.txt              # Python dependencies
+├── web-frontend/                     # React Web Application
+│   ├── public/
+│   │   └── index.html
+│   ├── src/
+│   │   ├── components/               # React components
+│   │   │   ├── Charts.js             # Chart.js visualizations
+│   │   │   ├── DataTable.js          # Data table component
+│   │   │   ├── FileUpload.js         # File upload component
+│   │   │   ├── History.js            # History list component
+│   │   │   ├── ReportModal.js        # PDF report modal
+│   │   │   └── SummaryCards.js       # Summary statistics cards
+│   │   ├── services/
+│   │   │   └── api.js                # API service layer
+│   │   ├── App.js                    # Main application component
+│   │   ├── index.js                  # React entry point
+│   │   └── index.css                 # Global styles
+│   └── package.json                  # Node.js dependencies
+├── desktop-frontend/                 # PyQt5 Desktop Application
+│   ├── main.py                       # Desktop application entry point
+│   └── requirements.txt              # Python dependencies
+├── sample_equipment_data.csv         # Sample data for testing
+└── README.md                         # This file
+```
+
+## 📌 Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Python 3.9+** - [Download](https://www.python.org/downloads/)
+- **Node.js 18+** - [Download](https://nodejs.org/)
+- **Git** - [Download](https://git-scm.com/)
+
+## 🚀 Installation
+
+### Backend Setup
+
+1. **Navigate to the backend directory:**
+   ```bash
+   cd backend
+   ```
+
+2. **Create and activate a virtual environment:**
+   ```bash
+   # Windows
+   python -m venv venv
+   venv\Scripts\activate
+
+   # macOS/Linux
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run database migrations:**
+   ```bash
+   python manage.py migrate
+   ```
+
+5. **Create a superuser (for PDF report generation):**
+   ```bash
+   python manage.py createsuperuser
+   ```
+   Follow the prompts to create an admin user.
+
+6. **Start the development server:**
+   ```bash
+   python manage.py runserver
+   ```
+   The API will be available at `http://localhost:8000/api/`
+
+### Web Frontend Setup
+
+1. **Open a new terminal and navigate to the web frontend directory:**
+   ```bash
+   cd web-frontend
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server:**
+   ```bash
+   npm start
+   ```
+   The web application will open at `http://localhost:3000`
+
+### Desktop Application Setup
+
+1. **Open a new terminal and navigate to the desktop frontend directory:**
+   ```bash
+   cd desktop-frontend
+   ```
+
+2. **Create and activate a virtual environment (recommended):**
+   ```bash
+   # Windows
+   python -m venv venv
+   venv\Scripts\activate
+
+   # macOS/Linux
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run the desktop application:**
+   ```bash
+   python main.py
+   ```
+
+## 💻 Usage
+
+### Using the Web Application
+
+1. Open `http://localhost:3000` in your browser
+2. Click on the upload area or drag & drop a CSV file
+3. View the summary statistics and interactive charts
+4. Switch between Charts and Data Table tabs
+5. Access upload history in the sidebar
+6. Click "Generate PDF Report" to create a downloadable report (requires authentication)
+
+### Using the Desktop Application
+
+1. Run `python main.py` in the desktop-frontend directory
+2. Click "Select CSV File" to choose a CSV file
+3. View summary statistics and Matplotlib charts
+4. Switch between Charts and Data Table tabs
+5. Select previous uploads from the history list
+6. Click "Generate PDF Report" to save a report
+
+### CSV File Format
+
+Your CSV file should have the following columns:
+
+| Column | Description | Type |
+|--------|-------------|------|
+| Equipment Name | Name/identifier of the equipment | Text |
+| Type | Type/category of equipment | Text |
+| Flowrate | Flowrate value | Number |
+| Pressure | Pressure value | Number |
+| Temperature | Temperature value | Number |
+
+**Example:**
+```csv
+Equipment Name,Type,Flowrate,Pressure,Temperature
+Reactor-001,Reactor,150.5,25.3,180.0
+Pump-001,Pump,85.0,15.2,45.0
+```
+
+A sample file `sample_equipment_data.csv` is included in the project root.
+
+## 📡 API Documentation
+
+### Base URL
+```
+http://localhost:8000/api/
+```
+
+### Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | API root with available endpoints |
+| POST | `/upload/` | Upload a CSV file |
+| GET | `/history/` | Get last 5 uploaded datasets |
+| GET | `/datasets/<id>/` | Get specific dataset details |
+| DELETE | `/datasets/<id>/delete/` | Delete a dataset |
+| POST | `/report/<id>/` | Generate PDF report (auth required) |
+| GET | `/latest/` | Get the most recent dataset |
+
+### Upload Response Example
+
+```json
+{
+  "message": "File uploaded and processed successfully",
+  "dataset_id": 1,
+  "summary": {
+    "total_equipment": 30,
+    "avg_flowrate": 142.35,
+    "avg_pressure": 15.67,
+    "avg_temperature": 85.42,
+    "type_distribution": {
+      "Reactor": 2,
+      "Pump": 3,
+      "Heat Exchanger": 2
+    }
+  },
+  "equipment_list": [...]
+}
+```
+
+## 📸 Screenshots
+
+### Web Application
+- Dashboard with summary statistics
+- Interactive Chart.js visualizations
+- Data table with sortable columns
+- Upload history sidebar
+
+### Desktop Application
+- PyQt5 native interface
+- Matplotlib chart visualizations
+- Integrated file browser
+- PDF report generation dialog
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+**Built with ❤️ for chemical engineers and data enthusiasts**

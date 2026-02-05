@@ -19,11 +19,35 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-chemical-equipment-visualizer-dev-key-change-in-production')
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
+# =============================================================================
+# TEMP DEBUG MODE (remove after fixing)
+# =============================================================================
+DEBUG = True
+ALLOWED_HOSTS = ['*']  # TEMP - Render + Vercel
 
-# Allowed hosts for production
-ALLOWED_HOSTS = os.environ.get(
+# Log all errors
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+        'api': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+}
+
+# Allowed hosts for production (keeping as fallback)
+_ALLOWED_HOSTS = os.environ.get(
     'ALLOWED_HOSTS', 
     'localhost,127.0.0.1,chemical-equipment-parameter-visualizer-u5wl.onrender.com'
 ).split(',')

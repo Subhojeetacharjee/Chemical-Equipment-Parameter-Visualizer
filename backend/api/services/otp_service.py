@@ -13,10 +13,16 @@ import logging
 from django.conf import settings
 
 # Fix for Windows SSL certificate verification issues
-# In production, install proper certificates instead
-import certifi
-os.environ['SSL_CERT_FILE'] = certifi.where()
-os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
+# Use truststore for system's native certificate store (Windows, macOS, Linux)
+try:
+    import truststore
+    truststore.inject_into_ssl()
+    logging.getLogger(__name__).info("Using system's native certificate store via truststore")
+except ImportError:
+    # Fallback to certifi if truststore not available
+    import certifi
+    os.environ['SSL_CERT_FILE'] = certifi.where()
+    os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
 
 # SendGrid Web API - more reliable than SMTP, bypasses SSL certificate issues
 from sendgrid import SendGridAPIClient

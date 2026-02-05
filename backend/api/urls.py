@@ -1,7 +1,7 @@
 """
 URL configuration for API endpoints.
 """
-from django.urls import path
+from django.urls import path, include
 from . import views
 
 urlpatterns = [
@@ -12,4 +12,7 @@ urlpatterns = [
     path('datasets/<int:dataset_id>/delete/', views.delete_dataset, name='delete-dataset'),
     path('report/<int:dataset_id>/', views.generate_report, name='generate-report'),
     path('latest/', views.get_latest_summary, name='get-latest'),
+    
+    # Authentication endpoints
+    path('auth/', include('api.auth_urls')),
 ]

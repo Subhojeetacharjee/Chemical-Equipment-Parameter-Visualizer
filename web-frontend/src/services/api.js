@@ -9,6 +9,15 @@ const api = axios.create({
   },
 });
 
+// Add JWT token to requests if available
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('accessToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export const apiService = {
   // Upload CSV file
   uploadCSV: async (file) => {
@@ -41,11 +50,11 @@ export const apiService = {
     return response.data;
   },
 
-  // Generate PDF report with authentication
-  generateReport: async (datasetId, username, password) => {
+  // Generate PDF report with JWT authentication (no username/password needed)
+  generateReport: async (datasetId) => {
     const response = await api.post(
       `/report/${datasetId}/`,
-      { username, password },
+      {},
       { responseType: 'blob' }
     );
     return response.data;

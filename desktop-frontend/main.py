@@ -14,9 +14,9 @@ from PyQt5.QtWidgets import (
     QLabel, QPushButton, QFileDialog, QTableWidget, QTableWidgetItem,
     QTabWidget, QGroupBox, QGridLayout, QMessageBox, QListWidget,
     QListWidgetItem, QDialog, QLineEdit, QFormLayout, QDialogButtonBox,
-    QSplitter, QFrame, QScrollArea, QSizePolicy
+    QSplitter, QFrame, QScrollArea, QSizePolicy, QProgressBar
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QPalette, QColor, QIcon
 
 import matplotlib
@@ -28,6 +28,40 @@ import numpy as np
 
 # API Configuration
 API_BASE_URL = os.environ.get('API_URL', 'http://localhost:8000/api')
+
+
+class UploadWorker(QThread):
+    """Background worker for file upload with progress"""
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+    progress = pyqtSignal(int)
+
+    def __init__(self, file_path):
+        super().__init__()
+        self.file_path = file_path
+
+    def run(self):
+        try:
+            self.progress.emit(20)
+            with open(self.file_path, 'rb') as f:
+                files = {'file': (os.path.basename(self.file_path), f, 'text/csv')}
+                self.progress.emit(50)
+                response = requests.post(f'{API_BASE_URL}/upload/', files=files, timeout=30)
+                self.progress.emit(80)
+
+            if response.status_code == 201:
+                self.progress.emit(100)
+                self.finished.emit(response.json())
+            else:
+                try:
+                    error_data = response.json()
+                    self.error.emit(error_data.get('error', f'Error: {response.status_code}'))
+                except:
+                    self.error.emit(f'Error: {response.status_code}')
+        except requests.exceptions.ConnectionError:
+            self.error.emit('Connection error. Make sure the backend server is running.')
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class APIWorker(QThread):
@@ -78,6 +112,8 @@ class MplCanvas(FigureCanvas):
         self.fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = self.fig.add_subplot(111)
         super().__init__(self.fig)
+        self.setMinimumSize(280, 220)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.fig.tight_layout(pad=3.0)
 
 
@@ -129,11 +165,13 @@ class ChartWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setMinimumSize(650, 500)
         self.setup_ui()
 
     def setup_ui(self):
         layout = QGridLayout(self)
-        layout.setSpacing(20)
+        layout.setSpacing(15)
+        layout.setContentsMargins(10, 10, 10, 10)
 
         # Create four chart canvases
         self.pie_canvas = MplCanvas(self, width=5, height=4, dpi=100)
@@ -150,6 +188,8 @@ class ChartWidget(QWidget):
     def create_chart_frame(self, title, canvas):
         """Create a styled frame for each chart"""
         frame = QFrame()
+        frame.setMinimumSize(300, 260)
+        frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         frame.setStyleSheet("""
             QFrame {
                 background-color: white;
@@ -158,13 +198,13 @@ class ChartWidget(QWidget):
             }
         """)
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setContentsMargins(10, 10, 10, 10)
 
         title_label = QLabel(title)
-        title_label.setFont(QFont('Segoe UI', 11, QFont.Bold))
+        title_label.setFont(QFont('Segoe UI', 10, QFont.Bold))
         title_label.setStyleSheet('color: #1e293b; border: none;')
         layout.addWidget(title_label)
-        layout.addWidget(canvas)
+        layout.addWidget(canvas, 1)
 
         return frame
 
@@ -188,66 +228,74 @@ class ChartWidget(QWidget):
         if type_distribution:
             labels = list(type_distribution.keys())
             sizes = list(type_distribution.values())
-            self.pie_canvas.axes.pie(
-                sizes, labels=labels, colors=colors[:len(labels)],
-                autopct='%1.1f%%', startangle=90, pctdistance=0.85
+            wedges, texts, autotexts = self.pie_canvas.axes.pie(
+                sizes, labels=None, colors=colors[:len(labels)],
+                autopct='%1.1f%%', startangle=90, pctdistance=0.75,
+                textprops={'fontsize': 8, 'color': 'white', 'fontweight': 'bold'}
             )
-            self.pie_canvas.axes.set_title('Equipment Type Distribution', fontsize=10, fontweight='bold')
+            self.pie_canvas.axes.legend(wedges, labels, loc='lower center', 
+                                         fontsize=7, ncol=2, bbox_to_anchor=(0.5, -0.15))
 
         # 2. Bar Chart - Average Values
-        params = ['Flowrate', 'Pressure', 'Temperature']
+        params = ['Flowrate', 'Pressure', 'Temp']
         values = [
             summary.get('avg_flowrate', 0),
             summary.get('avg_pressure', 0),
             summary.get('avg_temperature', 0)
         ]
-        bars = self.bar_canvas.axes.bar(params, values, color=['#667eea', '#764ba2', '#10b981'])
-        self.bar_canvas.axes.set_ylabel('Average Value')
-        self.bar_canvas.axes.set_title('Average Parameter Values', fontsize=10, fontweight='bold')
+        bars = self.bar_canvas.axes.bar(params, values, color=['#667eea', '#764ba2', '#10b981'], width=0.6)
+        self.bar_canvas.axes.set_ylabel('Avg Value', fontsize=9)
+        self.bar_canvas.axes.tick_params(axis='both', labelsize=8)
+        self.bar_canvas.axes.spines['top'].set_visible(False)
+        self.bar_canvas.axes.spines['right'].set_visible(False)
         
         # Add value labels on bars
         for bar, val in zip(bars, values):
             self.bar_canvas.axes.text(
-                bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                f'{val:.2f}', ha='center', va='bottom', fontsize=9
+                bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.5,
+                f'{val:.1f}', ha='center', va='bottom', fontsize=8, fontweight='bold'
             )
 
         # 3. Line Chart - Equipment Parameters Trend
         if equipment_list:
-            limited_equipment = equipment_list[:10]
-            names = [eq.get('name', '')[:12] for eq in limited_equipment]
+            limited_equipment = equipment_list[:8]  # Limit to 8 for cleaner display
+            names = [eq.get('name', '')[:8] for eq in limited_equipment]
             flowrates = [eq.get('flowrate', 0) for eq in limited_equipment]
             pressures = [eq.get('pressure', 0) for eq in limited_equipment]
             temperatures = [eq.get('temperature', 0) for eq in limited_equipment]
 
             x = range(len(names))
-            self.line_canvas.axes.plot(x, flowrates, 'o-', label='Flowrate', color='#667eea', linewidth=2)
-            self.line_canvas.axes.plot(x, pressures, 's-', label='Pressure', color='#764ba2', linewidth=2)
-            self.line_canvas.axes.plot(x, temperatures, '^-', label='Temperature', color='#10b981', linewidth=2)
+            self.line_canvas.axes.plot(x, flowrates, 'o-', label='Flow', color='#667eea', linewidth=1.5, markersize=4)
+            self.line_canvas.axes.plot(x, pressures, 's-', label='Press', color='#764ba2', linewidth=1.5, markersize=4)
+            self.line_canvas.axes.plot(x, temperatures, '^-', label='Temp', color='#10b981', linewidth=1.5, markersize=4)
             self.line_canvas.axes.set_xticks(x)
-            self.line_canvas.axes.set_xticklabels(names, rotation=45, ha='right', fontsize=8)
-            self.line_canvas.axes.legend(loc='upper right', fontsize=8)
-            self.line_canvas.axes.set_title('Equipment Parameters Trend', fontsize=10, fontweight='bold')
-            self.line_canvas.axes.grid(True, alpha=0.3)
+            self.line_canvas.axes.set_xticklabels(names, rotation=30, ha='right', fontsize=7)
+            self.line_canvas.axes.legend(loc='upper right', fontsize=7, framealpha=0.9)
+            self.line_canvas.axes.tick_params(axis='y', labelsize=7)
+            self.line_canvas.axes.grid(True, alpha=0.3, linestyle='--')
+            self.line_canvas.axes.spines['top'].set_visible(False)
+            self.line_canvas.axes.spines['right'].set_visible(False)
 
         # 4. Type Bar Chart
         if type_distribution:
-            types = list(type_distribution.keys())
+            types = [t[:10] for t in type_distribution.keys()]  # Truncate long names
             counts = list(type_distribution.values())
-            bars = self.type_bar_canvas.axes.bar(types, counts, color='#667eea')
-            self.type_bar_canvas.axes.set_ylabel('Count')
-            self.type_bar_canvas.axes.set_title('Equipment Count by Type', fontsize=10, fontweight='bold')
-            self.type_bar_canvas.axes.tick_params(axis='x', rotation=45)
+            bars = self.type_bar_canvas.axes.bar(types, counts, color='#667eea', width=0.6)
+            self.type_bar_canvas.axes.set_ylabel('Count', fontsize=9)
+            self.type_bar_canvas.axes.tick_params(axis='x', rotation=30, labelsize=7)
+            self.type_bar_canvas.axes.tick_params(axis='y', labelsize=8)
+            self.type_bar_canvas.axes.spines['top'].set_visible(False)
+            self.type_bar_canvas.axes.spines['right'].set_visible(False)
             
             for bar, count in zip(bars, counts):
                 self.type_bar_canvas.axes.text(
-                    bar.get_x() + bar.get_width() / 2, bar.get_height(),
-                    str(count), ha='center', va='bottom', fontsize=9
+                    bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.1,
+                    str(count), ha='center', va='bottom', fontsize=8, fontweight='bold'
                 )
 
-        # Refresh all canvases
+        # Refresh all canvases with better padding
         for canvas in [self.pie_canvas, self.bar_canvas, self.line_canvas, self.type_bar_canvas]:
-            canvas.fig.tight_layout()
+            canvas.fig.tight_layout(pad=1.5)
             canvas.draw()
 
     def clear_charts(self):
@@ -267,12 +315,15 @@ class MainWindow(QMainWindow):
         self.equipment_list = []
         self.history = []
         self.worker = None
+        self.upload_worker = None
+        self.selected_file_path = None
         
-        self.setWindowTitle('🧪 Chemical Equipment Parameter Visualizer')
+        self.setWindowTitle('Chemical Equipment Parameter Visualizer')
         self.setMinimumSize(1400, 900)
         self.setup_ui()
         self.apply_styles()
-        self.fetch_history()
+        # Delay history fetch for smoother startup
+        QTimer.singleShot(500, self.fetch_history)
 
     def setup_ui(self):
         """Set up the main UI"""
@@ -291,6 +342,8 @@ class MainWindow(QMainWindow):
         
         # Left panel - Upload and History
         left_panel = self.create_left_panel()
+        left_panel.setMinimumWidth(320)
+        left_panel.setMaximumWidth(400)
         splitter.addWidget(left_panel)
 
         # Right panel - Summary, Charts, and Table
@@ -298,12 +351,15 @@ class MainWindow(QMainWindow):
         splitter.addWidget(right_panel)
 
         splitter.setSizes([350, 1050])
+        splitter.setStretchFactor(0, 0)  # Left panel doesn't stretch
+        splitter.setStretchFactor(1, 1)  # Right panel stretches
         main_layout.addWidget(splitter)
 
     def create_header(self):
         """Create header section"""
         header = QFrame()
         header.setObjectName('header')
+        header.setFixedHeight(100)
         header.setStyleSheet("""
             #header {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
@@ -313,15 +369,17 @@ class MainWindow(QMainWindow):
             }
         """)
         layout = QVBoxLayout(header)
+        layout.setContentsMargins(20, 10, 20, 10)
+        layout.setSpacing(5)
 
-        title = QLabel('🧪 Chemical Equipment Parameter Visualizer')
-        title.setFont(QFont('Segoe UI', 24, QFont.Bold))
-        title.setStyleSheet('color: white;')
+        title = QLabel('Chemical Equipment Parameter Visualizer')
+        title.setFont(QFont('Arial', 20, QFont.Bold))
+        title.setStyleSheet('color: #ffffff; background: transparent; letter-spacing: 1px;')
         title.setAlignment(Qt.AlignCenter)
 
         subtitle = QLabel('Upload, analyze, and visualize chemical equipment parameters')
-        subtitle.setFont(QFont('Segoe UI', 11))
-        subtitle.setStyleSheet('color: rgba(255,255,255,0.8);')
+        subtitle.setFont(QFont('Arial', 10))
+        subtitle.setStyleSheet('color: #e0e0ff; background: transparent;')
         subtitle.setAlignment(Qt.AlignCenter)
 
         layout.addWidget(title)
@@ -339,24 +397,83 @@ class MainWindow(QMainWindow):
             }
         """)
         layout = QVBoxLayout(panel)
-        layout.setSpacing(20)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        layout.setContentsMargins(15, 15, 15, 15)
 
         # Upload section
         upload_group = QGroupBox('📤 Upload CSV File')
         upload_group.setFont(QFont('Segoe UI', 11, QFont.Bold))
         upload_layout = QVBoxLayout(upload_group)
+        upload_layout.setSpacing(10)
 
-        upload_btn = QPushButton('📁 Select CSV File')
-        upload_btn.setObjectName('primaryButton')
-        upload_btn.clicked.connect(self.select_file)
-        upload_btn.setMinimumHeight(50)
-        upload_layout.addWidget(upload_btn)
+        # Select file button
+        self.select_btn = QPushButton('📁 Select CSV File')
+        self.select_btn.setObjectName('primaryButton')
+        self.select_btn.clicked.connect(self.select_file)
+        self.select_btn.setMinimumHeight(45)
+        upload_layout.addWidget(self.select_btn)
 
+        # Selected file display with clear button
+        self.file_frame = QFrame()
+        self.file_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f0fdf4;
+                border: 1px solid #86efac;
+                border-radius: 8px;
+            }
+        """)
+        self.file_frame.setVisible(False)
+        file_frame_layout = QHBoxLayout(self.file_frame)
+        file_frame_layout.setContentsMargins(10, 8, 10, 8)
+        
         self.file_label = QLabel('No file selected')
-        self.file_label.setStyleSheet('color: #64748b; padding: 10px;')
-        self.file_label.setAlignment(Qt.AlignCenter)
-        upload_layout.addWidget(self.file_label)
+        self.file_label.setStyleSheet('color: #166534; font-weight: bold; border: none;')
+        file_frame_layout.addWidget(self.file_label, 1)
+        
+        clear_file_btn = QPushButton('✕')
+        clear_file_btn.setFixedSize(24, 24)
+        clear_file_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #dc2626;
+                color: white;
+                border: none;
+                border-radius: 12px;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QPushButton:hover {
+                background-color: #b91c1c;
+            }
+        """)
+        clear_file_btn.clicked.connect(self.clear_selected_file)
+        file_frame_layout.addWidget(clear_file_btn)
+        upload_layout.addWidget(self.file_frame)
+
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #e2e8f0;
+                border-radius: 5px;
+                text-align: center;
+                height: 20px;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #667eea, stop:1 #764ba2);
+                border-radius: 4px;
+            }
+        """)
+        upload_layout.addWidget(self.progress_bar)
+
+        # Upload button (separate from select)
+        self.upload_btn = QPushButton('⬆️ Upload File')
+        self.upload_btn.setObjectName('primaryButton')
+        self.upload_btn.clicked.connect(self.start_upload)
+        self.upload_btn.setMinimumHeight(45)
+        self.upload_btn.setEnabled(False)
+        upload_layout.addWidget(self.upload_btn)
 
         layout.addWidget(upload_group)
 
@@ -364,19 +481,39 @@ class MainWindow(QMainWindow):
         history_group = QGroupBox('📚 Upload History (Last 5)')
         history_group.setFont(QFont('Segoe UI', 11, QFont.Bold))
         history_layout = QVBoxLayout(history_group)
+        history_layout.setSpacing(8)
 
         self.history_list = QListWidget()
-        self.history_list.setMinimumHeight(300)
+        self.history_list.setMinimumHeight(250)
         self.history_list.itemClicked.connect(self.on_history_item_clicked)
+        self.history_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.history_list.customContextMenuRequested.connect(self.show_history_context_menu)
         history_layout.addWidget(self.history_list)
 
-        # Refresh button
-        refresh_btn = QPushButton('🔄 Refresh History')
+        # Button row for history
+        history_btn_layout = QHBoxLayout()
+        
+        refresh_btn = QPushButton('🔄 Refresh')
         refresh_btn.clicked.connect(self.fetch_history)
-        history_layout.addWidget(refresh_btn)
+        history_btn_layout.addWidget(refresh_btn)
+        
+        self.delete_btn = QPushButton('🗑️ Delete Selected')
+        self.delete_btn.clicked.connect(self.delete_selected_history)
+        self.delete_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #fee2e2;
+                color: #dc2626;
+                border: 1px solid #fecaca;
+            }
+            QPushButton:hover {
+                background-color: #fecaca;
+            }
+        """)
+        history_btn_layout.addWidget(self.delete_btn)
+        
+        history_layout.addLayout(history_btn_layout)
 
-        layout.addWidget(history_group)
-        layout.addStretch()
+        layout.addWidget(history_group, 1)
 
         return panel
 
@@ -587,42 +724,69 @@ class MainWindow(QMainWindow):
         """)
 
     def select_file(self):
-        """Open file dialog to select CSV file"""
+        """Open file dialog to select CSV file (doesn't upload yet)"""
         file_path, _ = QFileDialog.getOpenFileName(
             self, 'Select CSV File', '',
             'CSV Files (*.csv);;All Files (*)'
         )
         if file_path:
+            self.selected_file_path = file_path
             self.file_label.setText(os.path.basename(file_path))
-            self.upload_file(file_path)
+            self.file_frame.setVisible(True)
+            self.upload_btn.setEnabled(True)
 
-    def upload_file(self, file_path):
-        """Upload the selected file to the API"""
-        try:
-            with open(file_path, 'rb') as f:
-                files = {'file': (os.path.basename(file_path), f, 'text/csv')}
-                response = requests.post(f'{API_BASE_URL}/upload/', files=files, timeout=30)
+    def clear_selected_file(self):
+        """Clear the selected file"""
+        self.selected_file_path = None
+        self.file_label.setText('No file selected')
+        self.file_frame.setVisible(False)
+        self.upload_btn.setEnabled(False)
 
-            if response.status_code == 201:
-                data = response.json()
-                self.current_dataset_id = data.get('dataset_id')
-                self.summary = data.get('summary', {})
-                self.equipment_list = data.get('equipment_list', [])
-                
-                self.update_summary_cards()
-                self.update_charts()
-                self.update_table()
-                self.fetch_history()
-                
-                QMessageBox.information(self, 'Success', data.get('message', 'File uploaded successfully!'))
-            else:
-                error = response.json().get('error', 'Upload failed')
-                QMessageBox.warning(self, 'Error', error)
-        except requests.exceptions.ConnectionError:
-            QMessageBox.critical(self, 'Connection Error', 
-                'Could not connect to the server.\nMake sure the Django backend is running.')
-        except Exception as e:
-            QMessageBox.critical(self, 'Error', str(e))
+    def start_upload(self):
+        """Start the file upload in a background thread"""
+        if not self.selected_file_path:
+            return
+        
+        # Disable buttons during upload
+        self.select_btn.setEnabled(False)
+        self.upload_btn.setEnabled(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(10)
+        
+        # Start background upload
+        self.upload_worker = UploadWorker(self.selected_file_path)
+        self.upload_worker.progress.connect(self.on_upload_progress)
+        self.upload_worker.finished.connect(self.on_upload_finished)
+        self.upload_worker.error.connect(self.on_upload_error)
+        self.upload_worker.start()
+
+    def on_upload_progress(self, value):
+        """Update progress bar"""
+        self.progress_bar.setValue(value)
+
+    def on_upload_finished(self, data):
+        """Handle successful upload"""
+        self.progress_bar.setVisible(False)
+        self.select_btn.setEnabled(True)
+        self.clear_selected_file()
+        
+        self.current_dataset_id = data.get('dataset_id')
+        self.summary = data.get('summary', {})
+        self.equipment_list = data.get('equipment_list', [])
+        
+        self.update_summary_cards()
+        self.update_charts()
+        self.update_table()
+        self.fetch_history()
+        
+        QMessageBox.information(self, 'Success', data.get('message', 'File uploaded successfully!'))
+
+    def on_upload_error(self, error_msg):
+        """Handle upload error"""
+        self.progress_bar.setVisible(False)
+        self.select_btn.setEnabled(True)
+        self.upload_btn.setEnabled(True)
+        QMessageBox.critical(self, 'Upload Error', error_msg)
 
     def fetch_history(self):
         """Fetch upload history from API"""
@@ -655,6 +819,62 @@ class MainWindow(QMainWindow):
         dataset_id = item.data(Qt.UserRole)
         self.load_dataset(dataset_id)
 
+    def show_history_context_menu(self, position):
+        """Show context menu for history items"""
+        from PyQt5.QtWidgets import QMenu
+        item = self.history_list.itemAt(position)
+        if item:
+            menu = QMenu()
+            load_action = menu.addAction('📂 Load Dataset')
+            delete_action = menu.addAction('🗑️ Delete')
+            
+            action = menu.exec_(self.history_list.mapToGlobal(position))
+            dataset_id = item.data(Qt.UserRole)
+            
+            if action == load_action:
+                self.load_dataset(dataset_id)
+            elif action == delete_action:
+                self.delete_dataset(dataset_id)
+
+    def delete_selected_history(self):
+        """Delete the currently selected history item"""
+        current_item = self.history_list.currentItem()
+        if current_item:
+            dataset_id = current_item.data(Qt.UserRole)
+            self.delete_dataset(dataset_id)
+        else:
+            QMessageBox.warning(self, 'Warning', 'Please select a dataset to delete')
+
+    def delete_dataset(self, dataset_id):
+        """Delete a dataset from history"""
+        reply = QMessageBox.question(
+            self, 'Confirm Delete',
+            'Are you sure you want to delete this dataset?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            try:
+                response = requests.delete(f'{API_BASE_URL}/datasets/{dataset_id}/delete/', timeout=10)
+                if response.status_code == 200:
+                    # Clear current view if deleted dataset was selected
+                    if self.current_dataset_id == dataset_id:
+                        self.current_dataset_id = None
+                        self.summary = None
+                        self.equipment_list = []
+                        self.update_summary_cards()
+                        self.chart_widget.clear_charts()
+                        self.data_table.setRowCount(0)
+                        self.report_btn.setEnabled(False)
+                    
+                    self.fetch_history()
+                    QMessageBox.information(self, 'Success', 'Dataset deleted successfully')
+                else:
+                    QMessageBox.warning(self, 'Error', 'Failed to delete dataset')
+            except Exception as e:
+                QMessageBox.critical(self, 'Error', str(e))
+
     def load_dataset(self, dataset_id):
         """Load a specific dataset from the API"""
         try:
@@ -680,6 +900,13 @@ class MainWindow(QMainWindow):
     def update_summary_cards(self):
         """Update summary card values"""
         if not self.summary:
+            # Clear all cards when no data
+            for key in self.summary_cards:
+                card = self.summary_cards.get(key)
+                if card:
+                    value_label = card.findChild(QLabel, 'valueLabel')
+                    if value_label:
+                        value_label.setText('-')
             return
 
         self.report_btn.setEnabled(True)

@@ -7,7 +7,7 @@ import pandas as pd
 from django.http import HttpResponse
 from django.contrib.auth import authenticate
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, action
+from rest_framework.decorators import api_view, action, permission_classes, authentication_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from reportlab.lib import colors
@@ -204,26 +204,16 @@ def delete_dataset(request, dataset_id):
         }, status=status.HTTP_404_NOT_FOUND)
 
 
+from rest_framework.permissions import IsAuthenticated
+
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])  # Require JWT authentication
 def generate_report(request, dataset_id):
     """
     Generate a PDF report for a dataset.
-    Requires basic authentication (username and password in request body).
+    Requires JWT authentication (Authorization: Bearer <token>).
     """
-    # Basic authentication check
-    username = request.data.get('username')
-    password = request.data.get('password')
-    
-    if not username or not password:
-        return Response({
-            'error': 'Username and password required for report generation'
-        }, status=status.HTTP_401_UNAUTHORIZED)
-    
-    user = authenticate(username=username, password=password)
-    if not user:
-        return Response({
-            'error': 'Invalid credentials'
-        }, status=status.HTTP_401_UNAUTHORIZED)
+    user = request.user
     
     try:
         dataset = Dataset.objects.get(id=dataset_id)

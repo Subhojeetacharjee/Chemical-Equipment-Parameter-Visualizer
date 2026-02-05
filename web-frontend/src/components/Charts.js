@@ -11,7 +11,8 @@ import {
   PointElement,
   LineElement,
 } from 'chart.js';
-import { Bar, Pie, Line } from 'react-chartjs-2';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
+import { Bar, Line, Doughnut } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
@@ -22,7 +23,8 @@ ChartJS.register(
   Legend,
   ArcElement,
   PointElement,
-  LineElement
+  LineElement,
+  ChartDataLabels
 );
 
 const Charts = ({ summary, equipmentList }) => {
@@ -36,8 +38,10 @@ const Charts = ({ summary, equipmentList }) => {
     );
   }
 
-  // Type Distribution Pie Chart
+  // Type Distribution Pie Chart - Modern Doughnut Style
   const typeDistribution = summary.type_distribution || {};
+  const totalEquipment = Object.values(typeDistribution).reduce((a, b) => a + b, 0);
+  
   const pieData = {
     labels: Object.keys(typeDistribution),
     datasets: [
@@ -53,8 +57,10 @@ const Charts = ({ summary, equipmentList }) => {
           '#06b6d4',
           '#8b5cf6',
         ],
-        borderWidth: 2,
-        borderColor: '#fff',
+        borderWidth: 0,
+        hoverBorderWidth: 3,
+        hoverBorderColor: '#fff',
+        spacing: 2,
       },
     ],
   };
@@ -62,16 +68,66 @@ const Charts = ({ summary, equipmentList }) => {
   const pieOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    cutout: '55%',
     plugins: {
       legend: {
         position: 'bottom',
         labels: {
-          padding: 15,
+          padding: 20,
           usePointStyle: true,
+          pointStyle: 'circle',
+          font: {
+            size: 12,
+            weight: '500',
+          },
+          generateLabels: (chart) => {
+            const data = chart.data;
+            if (data.labels.length && data.datasets.length) {
+              return data.labels.map((label, i) => {
+                const value = data.datasets[0].data[i];
+                return {
+                  text: `${label} (${value})`,
+                  fillStyle: data.datasets[0].backgroundColor[i],
+                  strokeStyle: data.datasets[0].backgroundColor[i],
+                  lineWidth: 0,
+                  pointStyle: 'circle',
+                  hidden: false,
+                  index: i,
+                };
+              });
+            }
+            return [];
+          },
         },
       },
       title: {
         display: false,
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        padding: 12,
+        titleFont: { size: 14, weight: 'bold' },
+        bodyFont: { size: 13 },
+        cornerRadius: 8,
+        callbacks: {
+          label: (context) => {
+            const value = context.raw;
+            const percentage = ((value / totalEquipment) * 100).toFixed(1);
+            return ` ${context.label}: ${value} units (${percentage}%)`;
+          },
+        },
+      },
+      datalabels: {
+        color: '#fff',
+        font: {
+          weight: 'bold',
+          size: 14,
+        },
+        formatter: (value, context) => {
+          const percentage = ((value / totalEquipment) * 100).toFixed(0);
+          return percentage >= 8 ? `${value}\n(${percentage}%)` : '';
+        },
+        textAlign: 'center',
       },
     },
   };
@@ -106,9 +162,24 @@ const Charts = ({ summary, equipmentList }) => {
   const barOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    layout: {
+      padding: {
+        top: 30,
+      },
+    },
     plugins: {
       legend: {
         display: false,
+      },
+      datalabels: {
+        anchor: 'end',
+        align: 'top',
+        color: '#374151',
+        font: {
+          weight: 'bold',
+          size: 12,
+        },
+        formatter: (value) => value.toFixed(1),
       },
     },
     scales: {
@@ -168,6 +239,9 @@ const Charts = ({ summary, equipmentList }) => {
           usePointStyle: true,
         },
       },
+      datalabels: {
+        display: false,
+      },
     },
     scales: {
       y: {
@@ -203,12 +277,53 @@ const Charts = ({ summary, equipmentList }) => {
     ],
   };
 
+  const typeBarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: {
+      padding: {
+        top: 30,
+      },
+    },
+    plugins: {
+      legend: {
+        display: false,
+      },
+      datalabels: {
+        anchor: 'end',
+        align: 'top',
+        color: '#374151',
+        font: {
+          weight: 'bold',
+          size: 12,
+        },
+        formatter: (value) => value,
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        grid: {
+          color: 'rgba(0, 0, 0, 0.05)',
+        },
+      },
+      x: {
+        grid: {
+          display: false,
+        },
+      },
+    },
+  };
+
   return (
     <div className="charts-grid">
       <div className="chart-container">
-        <h3>📊 Equipment Type Distribution</h3>
-        <div style={{ height: '300px' }}>
-          <Pie data={pieData} options={pieOptions} />
+        <div className="chart-header">
+          <h3>📊 Equipment Type Distribution</h3>
+          <span className="chart-subtitle">Total: {totalEquipment} units</span>
+        </div>
+        <div style={{ height: '320px', padding: '10px' }}>
+          <Doughnut data={pieData} options={pieOptions} />
         </div>
       </div>
       
@@ -227,9 +342,9 @@ const Charts = ({ summary, equipmentList }) => {
       </div>
       
       <div className="chart-container">
-        <h3>🏭 Type Count</h3>
+        <h3>🏭 Equipment Count by Type</h3>
         <div style={{ height: '300px' }}>
-          <Bar data={typeBarData} options={barOptions} />
+          <Bar data={typeBarData} options={typeBarOptions} />
         </div>
       </div>
     </div>

@@ -232,7 +232,7 @@ A sample file `sample_equipment_data.csv` is included in the project root.
 http://localhost:8000/api/
 ```
 
-### Endpoints
+### Data Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -243,6 +243,127 @@ http://localhost:8000/api/
 | DELETE | `/datasets/<id>/delete/` | Delete a dataset |
 | POST | `/report/<id>/` | Generate PDF report (auth required) |
 | GET | `/latest/` | Get the most recent dataset |
+
+### Authentication Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/auth/register/` | Register new user (sends OTP) |
+| POST | `/auth/verify-signup-otp/` | Verify signup OTP and activate account |
+| POST | `/auth/login/` | Login with email/password (returns JWT) |
+| POST | `/auth/request-password-reset/` | Request password reset OTP |
+| POST | `/auth/verify-reset-otp/` | Verify password reset OTP |
+| POST | `/auth/reset-password/` | Reset password with OTP |
+| POST | `/auth/resend-otp/` | Resend OTP (for signup or password reset) |
+
+### Authentication Flow
+
+#### 1. Registration
+```bash
+POST /api/auth/register/
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "SecurePass123!",
+  "confirm_password": "SecurePass123!",
+  "name": "John Doe"  # optional
+}
+
+# Response (201)
+{
+  "success": true,
+  "message": "Account created successfully. Please check your email for verification code.",
+  "otp_required": true,
+  "email": "user@example.com"
+}
+```
+
+#### 2. Verify Email OTP
+```bash
+POST /api/auth/verify-signup-otp/
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "otp": "123456"
+}
+
+# Response (200)
+{
+  "success": true,
+  "message": "Email verified successfully. Your account is now active.",
+  "user": { "id": 1, "email": "user@example.com", "name": "John Doe" },
+  "tokens": {
+    "access": "eyJ...",
+    "refresh": "eyJ..."
+  }
+}
+```
+
+#### 3. Login
+```bash
+POST /api/auth/login/
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "SecurePass123!"
+}
+
+# Response (200)
+{
+  "success": true,
+  "message": "Login successful.",
+  "user": { "id": 1, "email": "user@example.com", "name": "John Doe" },
+  "tokens": {
+    "access": "eyJ...",
+    "refresh": "eyJ..."
+  }
+}
+```
+
+#### 4. Password Reset Flow
+```bash
+# Step 1: Request OTP
+POST /api/auth/request-password-reset/
+{ "email": "user@example.com" }
+
+# Step 2: Verify OTP (optional)
+POST /api/auth/verify-reset-otp/
+{ "email": "user@example.com", "otp": "123456" }
+
+# Step 3: Reset Password
+POST /api/auth/reset-password/
+{
+  "email": "user@example.com",
+  "otp": "123456",
+  "new_password": "NewSecurePass123!",
+  "confirm_new_password": "NewSecurePass123!"
+}
+```
+
+### Environment Variables for SendGrid Email
+
+Create a `.env` file in the `backend/` directory with these variables:
+
+```env
+# Django Secret Key
+DJANGO_SECRET_KEY=your-super-secret-key-change-in-production
+
+# SendGrid Configuration
+EMAIL_HOST=smtp.sendgrid.net
+EMAIL_PORT=587
+EMAIL_HOST_USER=apikey
+SENDGRID_API_KEY=your-sendgrid-api-key-here
+EMAIL_USE_TLS=True
+DEFAULT_FROM_EMAIL=noreply@yourdomain.com
+
+# OTP Settings
+OTP_EXPIRY_MINUTES=10
+```
+
+**Note:** Get your SendGrid API key from https://app.sendgrid.com/settings/api_keys
 
 ### Upload Response Example
 
@@ -287,7 +408,66 @@ http://localhost:8000/api/
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📄 License
+## � Deployment
+
+### Deploy Backend to Render
+
+1. **Create a new Web Service on Render:**
+   - Go to https://render.com and create an account
+   - Click "New" → "Web Service"
+   - Connect your GitHub repository
+
+2. **Configure the service:**
+   - **Root Directory:** `backend`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `gunicorn backend.wsgi:application`
+
+3. **Add Environment Variables on Render:**
+   ```
+   DJANGO_SECRET_KEY=<generate-a-secure-key>
+   DEBUG=False
+   ALLOWED_HOSTS=your-app-name.onrender.com
+   CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app
+   SENDGRID_API_KEY=<your-sendgrid-api-key>
+   DEFAULT_FROM_EMAIL=noreply@yourdomain.com
+   ```
+
+4. **Add PostgreSQL Database:**
+   - In Render dashboard, create a PostgreSQL database
+   - Copy the "External Database URL"
+   - Add `DATABASE_URL` environment variable
+
+5. **Deploy and run migrations:**
+   - After deploy, open Shell and run: `python manage.py migrate`
+
+### Deploy Frontend to Vercel
+
+1. **Create a new project on Vercel:**
+   - Go to https://vercel.com and connect your GitHub
+   - Import the repository
+
+2. **Configure the project:**
+   - **Root Directory:** `web-frontend`
+   - **Build Command:** `npm run build`
+   - **Output Directory:** `build`
+
+3. **Add Environment Variables on Vercel:**
+   ```
+   REACT_APP_API_URL=https://your-backend.onrender.com/api
+   ```
+
+4. **Deploy:**
+   - Click "Deploy" and wait for the build to complete
+
+### Post-Deployment Checklist
+
+- [ ] Backend is accessible at `https://your-app.onrender.com/api/`
+- [ ] Frontend can communicate with backend (test file upload)
+- [ ] CORS is properly configured
+- [ ] Email OTP is working (check SendGrid logs)
+- [ ] Database migrations are applied
+
+## �📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 

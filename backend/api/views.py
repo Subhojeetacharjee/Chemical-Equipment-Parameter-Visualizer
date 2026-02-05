@@ -22,6 +22,7 @@ from .serializers import (
     DatasetSerializer, DatasetDetailSerializer,
     EquipmentSerializer, SummarySerializer, FileUploadSerializer
 )
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 
 @api_view(['GET'])
@@ -40,9 +41,11 @@ def api_root(request):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def upload_csv(request):
     """
     Upload and process a CSV file containing equipment data.
+    Requires authentication - datasets are saved per user.
     
     Expected CSV columns: Equipment Name, Type, Flowrate, Pressure, Temperature
     """
@@ -110,8 +113,9 @@ def upload_csv(request):
         avg_temperature = round(df['Temperature'].mean(), 2)
         type_distribution = df['Type'].value_counts().to_dict()
         
-        # Create dataset record
+        # Create dataset record (associated with authenticated user)
         dataset = Dataset.objects.create(
+            user=request.user,
             name=csv_file.name,
             total_equipment=total_equipment,
             avg_flowrate=avg_flowrate,
@@ -134,8 +138,9 @@ def upload_csv(request):
             )
             equipment_list.append(equipment)
         
-        # Keep only last 5 datasets
-        old_datasets = Dataset.objects.all()[5:]
+        # Keep only last 5 datasets per user
+        user_datasets = Dataset.objects.filter(user=request.user)
+        old_datasets = user_datasets[5:]
         for old_dataset in old_datasets:
             old_dataset.delete()
         
@@ -166,9 +171,10 @@ def upload_csv(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_history(request):
-    """Get the last 5 uploaded datasets with their summaries."""
-    datasets = Dataset.objects.all()[:5]
+    """Get the last 5 uploaded datasets for the authenticated user."""
+    datasets = Dataset.objects.filter(user=request.user)[:5]
     serializer = DatasetSerializer(datasets, many=True)
     return Response({
         'count': len(serializer.data),
@@ -177,10 +183,11 @@ def get_history(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_dataset(request, dataset_id):
-    """Get detailed information about a specific dataset."""
+    """Get detailed information about a specific dataset (user's own datasets only)."""
     try:
-        dataset = Dataset.objects.get(id=dataset_id)
+        dataset = Dataset.objects.get(id=dataset_id, user=request.user)
         serializer = DatasetDetailSerializer(dataset)
         return Response(serializer.data)
     except Dataset.DoesNotExist:
@@ -190,10 +197,11 @@ def get_dataset(request, dataset_id):
 
 
 @api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
 def delete_dataset(request, dataset_id):
-    """Delete a specific dataset."""
+    """Delete a specific dataset (user's own datasets only)."""
     try:
-        dataset = Dataset.objects.get(id=dataset_id)
+        dataset = Dataset.objects.get(id=dataset_id, user=request.user)
         dataset.delete()
         return Response({
             'message': 'Dataset deleted successfully'
@@ -204,19 +212,17 @@ def delete_dataset(request, dataset_id):
         }, status=status.HTTP_404_NOT_FOUND)
 
 
-from rest_framework.permissions import IsAuthenticated
-
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])  # Require JWT authentication
+@permission_classes([IsAuthenticated])
 def generate_report(request, dataset_id):
     """
     Generate a PDF report for a dataset.
-    Requires JWT authentication (Authorization: Bearer <token>).
+    Requires JWT authentication - only generates reports for user's own datasets.
     """
     user = request.user
     
     try:
-        dataset = Dataset.objects.get(id=dataset_id)
+        dataset = Dataset.objects.get(id=dataset_id, user=request.user)
     except Dataset.DoesNotExist:
         return Response({
             'error': 'Dataset not found'

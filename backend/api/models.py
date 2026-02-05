@@ -135,6 +135,14 @@ class EmailOTP(models.Model):
 class Dataset(models.Model):
     """Model to store uploaded CSV datasets."""
     
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='datasets',
+        null=True,
+        blank=True,
+        help_text="User who uploaded this dataset"
+    )
     name = models.CharField(max_length=255, help_text="Name of the uploaded file")
     uploaded_at = models.DateTimeField(default=timezone.now)
     total_equipment = models.IntegerField(default=0)

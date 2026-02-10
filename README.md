@@ -25,8 +25,6 @@ A full-stack hybrid application for uploading, analyzing, and visualizing chemic
 Frontend:https://chemical-equipment-parameter-visual-six.vercel.app/login
 
 
-Backend:https://chemical-equipment-parameter-visualizer-u5wl.onrender.com
-
 
 ## ✨ Features
 

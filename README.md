@@ -20,6 +20,12 @@ A full-stack hybrid application for uploading, analyzing, and visualizing chemic
 - [Contributing](#-contributing)
 - [License](#-license)
 
+## ✨ Links
+
+Frontend:https://chemical-equipment-parameter-visual-six.vercel.app/login
+Backend:https://chemical-equipment-parameter-visualizer-u5wl.onrender.com
+
+
 ## ✨ Features
 
 - **CSV Upload**: Upload CSV files with equipment data (Equipment Name, Type, Flowrate, Pressure, Temperature)
